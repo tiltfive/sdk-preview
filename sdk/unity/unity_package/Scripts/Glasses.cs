@@ -60,6 +60,8 @@ namespace TiltFive
 
         public float worldSpaceUnitsPerPhysicalMeter => 1 / Mathf.Max(physicalMetersPerWorldSpaceUnit, float.Epsilon);  // No dividing by zero.
 
+        public float oneUnitLengthInMeters => (new Length(1, contentScaleUnit)).ToMeters;
+
         /// <summary>
         /// The real-world unit to be compared against when using <see cref="contentScaleRatio">.
         /// </summary>
