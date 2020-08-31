@@ -10,7 +10,7 @@ To start developing with the Tilt Five SDK Preview, either:
 
 or
 1. Download the latest release and extract its contents.
-  1. From the extracted folder, import `TiltFivePlugin-Preview.unitypackage` into your Unity project.
+  1. From the extracted folder, import `TiltFivePlugin-Preview.unitypackage` into your Unity project (Unity 2018.4 LTS or newer).
 
 Be sure to check out the `Hello Tilt Five` example Unity project under `sdk-examples` for an example of how to set up a scene using the SDK Preview. For further information, see `Tilt Five Unity Preview Development Setup.pdf`
 
