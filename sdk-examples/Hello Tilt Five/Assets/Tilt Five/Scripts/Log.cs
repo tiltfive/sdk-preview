@@ -24,7 +24,7 @@ namespace TiltFive.Logging
     public class LogSettings
     {
         [Range(0, 5)]
-        public int level = Log.DISABLED;
+        public int level = Log.VERBOSE_LEVEL;
         public string TAG = "TFI";
     }
 
@@ -41,7 +41,7 @@ namespace TiltFive.Logging
 		private string tag = "Tilt Five, Inc.";
         
         /// <summary> The logging level. </summary>
-		private int level = DISABLED;
+		private int level = VERBOSE_LEVEL;
 
         /// <summary>
         /// Gets or sets the logging tag.

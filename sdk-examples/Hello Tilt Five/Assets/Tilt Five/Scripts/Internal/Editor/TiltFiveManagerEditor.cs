@@ -27,11 +27,14 @@ namespace TiltFive
         SerializedObject previousObject = null;
 
         // Glasses View
-        SerializedProperty headPoseCameraProperty = null,
+        SerializedProperty glassesFOVProperty = null,
+                        overrideFOVProperty = null,
+                        headPoseCameraProperty = null,
+                        glassesMirrorModeProperty = null,
                         gameBoardProperty = null,
                         scaleRatioProperty = null,
                         physicalUnitsProperty = null;
-        
+
         //Logging and Tilt Five XR View
         SerializedProperty logLevelProperty = null,
                         logTagProperty = null;
@@ -102,7 +105,7 @@ namespace TiltFive
 			{
 				view = PanelView.GlassesConfig;
 				activePanelProperty.intValue = 0;
-			}			
+			}
 			if (true == GUILayout.Toggle((2 == activePanelProperty.intValue), "Tools", buttonStyle))
 			{
 				view = PanelView.EditorConfig;
@@ -119,6 +122,8 @@ namespace TiltFive
         private void DrawGlassesView()
         {
             DrawHeadPoseCameraField();
+            DrawGlassesMirrorModeField();
+            DrawGlassesFOVField();
             EditorGUILayout.Space();
 
             DrawGameBoardField();
@@ -142,8 +147,15 @@ namespace TiltFive
 
         private void CacheSerializedProperties()
         {
+            // Glasses FOV
+            glassesFOVProperty = serializedObject.FindProperty("glassesSettings.customFOV");
+            overrideFOVProperty = serializedObject.FindProperty("glassesSettings.overrideFOV");
+
             // Glasses camera
             headPoseCameraProperty = serializedObject.FindProperty("glassesSettings.headPoseCamera");
+
+            // Glasses mirror mode
+            glassesMirrorModeProperty = serializedObject.FindProperty("glassesSettings.glassesMirrorMode");
 
             // Game Board
             gameBoardProperty = serializedObject.FindProperty("glassesSettings.gameBoard");
@@ -163,6 +175,28 @@ namespace TiltFive
 
 		#region Field Drawing
 
+        private void DrawGlassesFOVField()
+        {
+            ++EditorGUI.indentLevel;
+
+            overrideFOVProperty.boolValue = EditorGUILayout.Toggle(new GUIContent("Override FOV"), overrideFOVProperty.boolValue);
+
+            if(overrideFOVProperty.boolValue)
+            {
+                EditorGUILayout.HelpBox("Overriding this value is not recommended - proceed with caution." +
+                    System.Environment.NewLine + System.Environment.NewLine +
+                    "Changing the FOV value affects the image projected by the glasses, " +
+                    "either cropping/shrinking it while boosting sharpness, or expanding it while reducing sharpness. ",
+                    MessageType.Warning);
+
+                glassesFOVProperty.floatValue = EditorGUILayout.Slider(
+                    new GUIContent("Field of View", "The field of view of the eye cameras. Higher values trade perceived sharpness for increased projection FOV."),
+                    glassesFOVProperty.floatValue, GlassesSettings.MIN_FOV, GlassesSettings.MAX_FOV);
+            }
+
+            --EditorGUI.indentLevel;
+        }
+
         private void DrawHeadPoseCameraField()
         {
             bool hasCamera = headPoseCameraProperty.objectReferenceValue;
@@ -176,6 +210,15 @@ namespace TiltFive
             EditorGUILayout.EndHorizontal();
             EditorGUI.LabelField(theCameraRect, new GUIContent("",
                 "The Camera driven by the glasses head tracking system."));
+        }
+
+        private void DrawGlassesMirrorModeField()
+        {
+            ++EditorGUI.indentLevel;
+
+            glassesMirrorModeProperty.enumValueIndex = EditorGUILayout.Popup("Mirror Mode", glassesMirrorModeProperty.enumValueIndex, glassesMirrorModeProperty.enumDisplayNames);
+
+            --EditorGUI.indentLevel;
         }
 
         private void DrawGameBoardField()

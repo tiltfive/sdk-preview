@@ -69,7 +69,7 @@ namespace TiltFive
         }
     }
 
-    public class Plugin : TiltFive.SingletonComponent<Plugin>
+    public class Display : TiltFive.SingletonComponent<Display>
     {
         // Head Pose
         [NonSerialized]
@@ -77,11 +77,20 @@ namespace TiltFive
         [NonSerialized]
         float[] _headRotation = new float[4];
 
+        // Wand Pose
+        [NonSerialized]
+        float[] _wandPosition = new float[3];
+        [NonSerialized]
+        float[] _wandRotation = new float[4];
+
         // Stereo camera poses.
         [NonSerialized] float[] _rotToULVC_UGBL = new float[4];
         [NonSerialized] float[] _rotToURVC_UGBL = new float[4];
         [NonSerialized] float[] _posULVC_UGBL = new float[3];
         [NonSerialized] float[] _posURVC_UGBL = new float[3];
+
+        // Display Settings.
+        [NonSerialized] int[] _displaySettings = new int[2];
 
         // Frame sender render-thread callback.
         [NonSerialized]
@@ -185,6 +194,7 @@ namespace TiltFive
                 int texHeight_PIX,
                 bool isSrgb,
                 float fovYDegrees,
+                float widthToHeightRatio,
                 Quaternion rotToUGBL_ULVC,
                 Vector3 posULVC_UGBL,
                 Quaternion rotToUGBL_URVC,
@@ -195,6 +205,7 @@ namespace TiltFive
                                                     texHeight_PIX,
                                                     isSrgb,
                                                     fovYDegrees,
+                                                    widthToHeightRatio,
                                                     rotToUGBL_ULVC,
                                                     posULVC_UGBL,
                                                     rotToUGBL_URVC,
@@ -208,13 +219,12 @@ namespace TiltFive
                 int texHeight_PIX,
                 bool isSrgb,
                 float fovYDegrees,
+                float widthToHeightRatio,
                 Quaternion rotToUGBL_ULVC,
                 Vector3 posULVC_UGBL,
                 Quaternion rotToUGBL_URVC,
                 Vector3 posURVC_UGBL)
         {
-            float widthToHeightRatio = (float) texWidth_PIX / (float) texHeight_PIX;
-
             float startY_VCI = -Mathf.Tan(fovYDegrees * (0.5f * Mathf.PI / 180.0f));
             float startX_VCI = startY_VCI * widthToHeightRatio;
             float width_VCI  = -2.0f * startX_VCI;
@@ -268,9 +278,35 @@ namespace TiltFive
 
             return true;
         }
+
+        public static bool GetDisplayDimensions(ref Vector2Int displayDimensions)
+        {
+            return Instance.GetDisplayDimensionsImpl(ref displayDimensions);
+        }
+
+        private bool GetDisplayDimensionsImpl(ref Vector2Int displayDimensions)
+        {
+            int result = 1;
+            try
+            {
+                result = NativePlugin.GetMaxDisplayDimensions(_displaySettings);
+
+                if(result == 0)
+                {
+                    displayDimensions = new Vector2Int(_displaySettings[0], _displaySettings[1]);
+                }
+                else Log.Warn("Plugin.cs: Failed to retrieve display settings from plugin.");
+            }
+            catch (Exception e)
+            {
+                Log.Error(e.Message);
+            }
+
+            return (0 == result);
+        }
     }
 
-    public class PluginHelper
+    public class DisplayHelper
     {
         private static Matrix4x4 Frustum(ARProjectionFrustum f)
         {

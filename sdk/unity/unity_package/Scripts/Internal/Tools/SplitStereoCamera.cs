@@ -28,14 +28,43 @@ namespace TiltFive
     [System.Serializable]
     public class DisplaySettings
     {
-        /// <summary> The display width. </summary>
-        public const int width = 2560;
+        private static DisplaySettings instance;
+        private static DisplaySettings Instance
+        {
+            get
+            {
+                if(instance == null)
+                {
+                    instance = new DisplaySettings();
+                }
+                return instance;
+            }
+            set => instance = value;
+        }
+
+        private DisplaySettings()
+        {
+            if(!Display.GetDisplayDimensions(ref defaultDimensions))
+            {
+                Log.Warn("Could not retrieve display settings from the plugin.");
+            }
+        }
+
+        /// <summary> The display width for a single eye. </summary>
+        public static int monoWidth => (stereoWidth / 2);
+        /// <summary> The display width for two eyes. </summary>
+        public static int stereoWidth => Instance.defaultDimensions.x;
         /// <summary> The display height. </summary>
-        public const int height = 720;
-        /// <summary> The display half width (in stereo rendering this is width for a single eye). </summary>
-        public const int halfWidth = (width / 2);
+        public static int height => Instance.defaultDimensions.y;
+        /// <summary> The display aspect ratio. </summary>
+        public static float monoWidthToHeightRatio => (float) monoWidth / height;
+        /// <summary> The double-width display aspect ratio. </summary>
+        public static float stereoWidthToHeightRatio => (float) stereoWidth / height;
         /// <summary> The depth buffer's precision. </summary>
         public const int depthBuffer = 24;
+
+        // Provide a hardcoded default resolution if the plugin is somehow unavailable.
+        private readonly Vector2Int defaultDimensions = new Vector2Int(2432, 768);
     }
 
     [DisallowMultipleComponent]
@@ -93,9 +122,15 @@ namespace TiltFive
         private const string SHADER_DISPLAY_BLIT = "Tilt Five/Simple Blend Shader";
         /// <summary> The Material used to store/reference the shader. </summary>
         private Material displayBlitShader;
+        private Camera blackBarRenderer;
 
         private System.IntPtr leftTexHandle;
         private System.IntPtr rightTexHandle;
+
+        [HideInInspector]
+        public GlassesMirrorMode glassesMirrorMode = GlassesMirrorMode.LeftEye;
+        private RenderTexture singlePreviewTex;
+        private RenderTexture doublePreviewTex;
 
         /// <summary> The Cameras' field of view property. </summary>
         public float fieldOfView
@@ -166,7 +201,6 @@ namespace TiltFive
             // primary Camera for blitting to the backbuffer.
             headPoseCamera.enabled = true;
 
-
             leftEye = GameObject.Find(LEFT_EYE_CAMERA_NAME);
             if (null != leftEye)
             {
@@ -198,7 +232,7 @@ namespace TiltFive
 
             //create the left eye camera's render texture
             RenderTexture leftTex = new RenderTexture(
-                DisplaySettings.halfWidth,
+                DisplaySettings.monoWidth,
                 DisplaySettings.height,
                 DisplaySettings.depthBuffer,
                 RenderTextureFormat.ARGB32);
@@ -206,11 +240,16 @@ namespace TiltFive
             {
                 leftTex.antiAliasing = QualitySettings.antiAliasing;
             }
+            leftEyeCamera.projectionMatrix = Matrix4x4.Perspective(
+                leftEyeCamera.fieldOfView,
+                DisplaySettings.monoWidthToHeightRatio,
+                leftEyeCamera.nearClipPlane,
+                leftEyeCamera.farClipPlane);
             leftEyeCamera.targetTexture = leftTex;
             leftEyeCamera.depth = headPoseCamera.depth - 1;
 
             //create the right eye camera's render texture
-            RenderTexture rightTex = new RenderTexture(DisplaySettings.halfWidth,
+            RenderTexture rightTex = new RenderTexture(DisplaySettings.monoWidth,
                 DisplaySettings.height,
                 DisplaySettings.depthBuffer,
                 RenderTextureFormat.ARGB32);
@@ -218,9 +257,39 @@ namespace TiltFive
             {
                 rightTex.antiAliasing = QualitySettings.antiAliasing;
             }
+            rightEyeCamera.projectionMatrix = Matrix4x4.Perspective(
+                rightEyeCamera.fieldOfView,
+                DisplaySettings.monoWidthToHeightRatio,
+                rightEyeCamera.nearClipPlane,
+                rightEyeCamera.farClipPlane);
             rightEyeCamera.targetTexture = rightTex;
             rightEyeCamera.depth = headPoseCamera.depth - 1;
 
+            singlePreviewTex = new RenderTexture(
+                DisplaySettings.monoWidth,
+                DisplaySettings.height,
+                DisplaySettings.depthBuffer,
+                RenderTextureFormat.ARGB32);
+            doublePreviewTex = new RenderTexture(
+                DisplaySettings.stereoWidth,
+                DisplaySettings.height,
+                DisplaySettings.depthBuffer,
+                RenderTextureFormat.ARGB32);
+
+            // Later in OnPreRender, we'll be setting the head pose camera's Rect property
+            // to define the rendered area, effectively creating letterboxing/pillarboxing.
+            // This black bar renderer will be dedicated to filling the excess space
+            // with a solid color (black). Without this, the black bars can be filled with data
+            // that is present before rendered area gets defined - this can happen if a game renders
+            // at least one frame before the glasses are plugged in.
+            var blackBarRendererObject = new GameObject("Black Bar Renderer");
+            blackBarRendererObject.transform.parent = gameObject.transform;
+            blackBarRenderer = blackBarRendererObject.AddComponent<Camera>();
+            blackBarRenderer.depth = theHeadPoseCamera.depth - 1;
+            blackBarRenderer.cullingMask = 0; // Nothing is rendered.  //LayerMask.NameToLayer("Nothing");
+            blackBarRenderer.clearFlags = CameraClearFlags.SolidColor;
+            blackBarRenderer.backgroundColor = Color.black;
+            blackBarRenderer.enabled = false;
 
             // Load the blitting shader to copy the the left & right render textures
             // into the backbuffer
@@ -236,7 +305,6 @@ namespace TiltFive
             SyncFields(headPoseCamera);
             SyncTransform();
             showHideCameras();
-
         }
 
         /// <summary>
@@ -296,12 +364,22 @@ namespace TiltFive
 #endif
         }
 
+        void OnEnable()
+        {
+            blackBarRenderer.enabled = true;
+        }
+
+        void OnDisable()
+        {
+            blackBarRenderer.enabled = false;
+        }
+
         /// <summary>
         /// Configure rendering parameters for the upcoming frame.
         /// </summary>
         void OnPreRender()
         {
-            headPoseCamera.targetTexture = null;
+            theHeadPoseCamera.targetTexture = null;
 
             // Check whether the left/right render textures' states have been invalidated,
             // and reset the cached texture handles if so. See the longer explanation below in Update()
@@ -309,6 +387,25 @@ namespace TiltFive
             {
                 leftTexHandle = System.IntPtr.Zero;
                 rightTexHandle = System.IntPtr.Zero;
+            }
+
+            // Lock the aspect ratio and add pillarboxing/letterboxing as needed.
+            float screenRatio = Screen.width / (float)Screen.height;
+            float targetRatio = glassesMirrorMode == GlassesMirrorMode.Stereoscopic
+                ? DisplaySettings.stereoWidthToHeightRatio
+                : DisplaySettings.monoWidthToHeightRatio;
+
+            if(screenRatio > targetRatio) {
+                // Screen or window is wider than the target: pillarbox.
+                float normalizedWidth = targetRatio / screenRatio;
+                float barThickness = (1f - normalizedWidth) / 2f;
+                theHeadPoseCamera.rect = new Rect(barThickness, 0, normalizedWidth, 1);
+            }
+            else {
+                // Screen or window is narrower than the target: letterbox.
+                float normalizedHeight = screenRatio / targetRatio;
+                float barThickness = (1f - normalizedHeight) / 2f;
+                theHeadPoseCamera.rect = new Rect(0, barThickness, 1, normalizedHeight);
             }
         }
 
@@ -320,6 +417,20 @@ namespace TiltFive
             // this runs before OnRenderImage(_, _)
         }
 
+        void CopyTextureToPreviewTexture(RenderTexture sourceTex, RenderTexture destinationTex, int xOffset = 0)
+        {
+            Graphics.CopyTexture(
+                        sourceTex,
+                        0,      // srcElement
+                        0,      // srcMip
+                        0, 0,   // src offset
+                        sourceTex.width, sourceTex.height,  // src size
+                        destinationTex,
+                        0,      // dstElement
+                        0,      // dstMip
+                        xOffset, 0);  // dst offset
+        }
+
         /// <summary>
         /// Apply post-processing effects to the final image before it is
         /// presented.
@@ -328,19 +439,43 @@ namespace TiltFive
         /// <param name="dst">The destination render texture.</param>
         void OnRenderImage(RenderTexture src, RenderTexture dst)
         {
-            Graphics.Blit(leftEyeCamera.targetTexture,
-                          null as RenderTexture,
-                          new Vector2(1.0f, 1.0f),
-                          new Vector2(0.0f, 0.0f));
+            var leftTargetTex = leftEyeCamera.targetTexture;
+            var rightTargetTex = rightEyeCamera.targetTexture;
 
-            Graphics.Blit(rightEyeCamera.targetTexture,
-                          null as RenderTexture,
-                          new Vector2(1.0f, 1.0f),
-                          new Vector2(0.0f, 0.0f));
+            if(glassesMirrorMode != GlassesMirrorMode.None)
+            {
+                var previewTex = glassesMirrorMode == GlassesMirrorMode.Stereoscopic ? doublePreviewTex : singlePreviewTex;
 
-            bool isSrgb = leftEyeCamera.targetTexture.sRGB;
+                switch(glassesMirrorMode)
+                {
+                    case GlassesMirrorMode.LeftEye:
+                        CopyTextureToPreviewTexture(leftTargetTex, previewTex);
+                        break;
+                    case GlassesMirrorMode.RightEye:
+                        CopyTextureToPreviewTexture(rightTargetTex, previewTex);
+                        break;
+                    case GlassesMirrorMode.Stereoscopic:
+                        // Copy the two eyes' target textures to a double-wide texture, then display it onscreen.
+                        CopyTextureToPreviewTexture(leftTargetTex, previewTex);
+                        CopyTextureToPreviewTexture(rightTargetTex, previewTex, leftTargetTex.width);
+                        break;
+                }
 
-            float fovYDegrees = theHeadPoseCamera.fieldOfView;
+                // Blitting is required when overriding OnRenderImage().
+                // Setting the blit destination to null is the same as blitting to the screen backbuffer.
+                // This will effectively render previewTex to the screen.
+                Graphics.Blit(previewTex,
+                    null as RenderTexture,
+                    Vector2.one,
+                    Vector2.zero);
+            }
+            else Graphics.Blit(src, null as RenderTexture);
+
+            // We're done with our letterboxing/pillarboxing now that we've blitted to the screen.
+            // If the SplitStereoCamera gets disabled next frame, ensure that the original behavior returns.
+            theHeadPoseCamera.rect = new Rect(0, 0, 1, 1);
+
+            bool isSrgb = leftTargetTex.sRGB;
 
             Vector3 posULVC_UWRLD = leftEyeCamera.transform.position;
             Quaternion rotToUWRLD_ULVC = leftEyeCamera.transform.rotation;
@@ -358,22 +493,22 @@ namespace TiltFive
             There are a few ways this can happen, including the game switching to/from fullscreen, 
             or the system screensaver being displayed. When this happens, the native texture pointers we
             pass to the native plugin are also invalidated, and garbage data gets displayed by the glasses.
-                        
+
             To fix this, we can check whether the state has been invalidated and reacquire a valid native texture pointer.
             RenderTexture's IsCreated() function reports false if the render texture has been invalidated.
             We must detect this change above in OnPreRender(), because IsCreated reports true within Update().
             If we detect that the render textures have been invalidated, we null out the cached pointers and reacquire here.
             */
-            if(leftTexHandle == System.IntPtr.Zero || rightTexHandle == System.IntPtr.Zero)
-            {                
-                leftTexHandle = leftEyeCamera.targetTexture.GetNativeTexturePtr();
-                rightTexHandle = rightEyeCamera.targetTexture.GetNativeTexturePtr();
-            }            
-
-            Plugin.PresentStereoImages(leftTexHandle, rightTexHandle,
-                                       leftEyeCamera.targetTexture.width, leftEyeCamera.targetTexture.height,
+            if(leftTexHandle == System.IntPtr.Zero || rightTexHandle == System.IntPtr.Zero || Time.frameCount < 30)
+            {
+                leftTexHandle = leftTargetTex.GetNativeTexturePtr();
+                rightTexHandle = rightTargetTex.GetNativeTexturePtr();
+            }
+            Display.PresentStereoImages(leftTexHandle, rightTexHandle,
+                                       leftTargetTex.width, leftTargetTex.height,
                                        isSrgb,
-                                       fovYDegrees,
+                                       fieldOfView,
+                                       DisplaySettings.monoWidthToHeightRatio,
                                        rotToUGBL_ULVC,
                                        posULVC_UGBL,
                                        rotToUGBL_URVC,

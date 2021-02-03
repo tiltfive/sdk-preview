@@ -27,7 +27,7 @@ namespace TiltFive
         public const string PLUGIN_LIBRARY = @"TiltFiveUnity";
 #endif
 
-        // Glasses Availability        
+        // Glasses Availability
         public static int RefreshGlassesAvailable()
         {
             // Implementation will be included in a future non-preview version of the SDK.
@@ -44,7 +44,42 @@ namespace TiltFive
             return 0;
         }
 
-        // Submit Render Textures        
+        // Wand Availability
+        public static int GetWandAvailability(
+            ref bool wandAvailable,
+            [MarshalAs(UnmanagedType.I4)] Input.WandTarget wandTarget)
+        {
+            // Implementation will be included in a future non-preview version of the SDK.
+            return 0;
+        }
+
+        // Scan for Wands
+        public static int ScanForWands()
+        {
+            // Implementation will be included in a future non-preview version of the SDK.
+            return 0;
+        }
+
+        // Swap Wand Handedness
+        public static int SwapWandHandedness()
+        {
+            // Implementation will be included in a future non-preview version of the SDK.
+            return 0;
+        }
+
+        // Wand Controls State
+        public static int GetControllerState(
+            [MarshalAs(UnmanagedType.I4)] Input.WandTarget wandTarget,
+            ref UInt32 buttons,
+            [MarshalAs(UnmanagedType.LPArray, SizeConst = 2)] float[] stick,
+            ref float trigger,
+            ref Int64 timestamp)
+        {
+            // Implementation will be included in a future non-preview version of the SDK.
+            return 0;
+        }
+
+        // Submit Render Textures
         public static int QueueStereoImages(
                 System.IntPtr leftEyeTextureHandle,
                 System.IntPtr rightEyeTextureHandle,
@@ -64,11 +99,19 @@ namespace TiltFive
             return 0;
         }
 
-        
         public static IntPtr GetSendFrameCallback()
         {
             // Implementation will be included in a future non-preview version of the SDK.
             return IntPtr.Zero;
+        }
+
+        public static int GetMaxDisplayDimensions(
+            [MarshalAs(UnmanagedType.LPArray, SizeConst = 2)] int[] displayDimensions)
+        {
+            // Implementation will be included in a future non-preview version of the SDK.
+            displayDimensions[0] = 2432;
+            displayDimensions[1] = 768;
+            return 0;
         }
 
 #if UNITY_WEBGL && !UNITY_EDITOR

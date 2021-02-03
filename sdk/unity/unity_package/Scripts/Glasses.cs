@@ -40,7 +40,17 @@ namespace TiltFive
         /// </summary>
         public Camera headPoseCamera;
 
-        public readonly float defaultFOV = 64f;
+        public const float MIN_FOV = 35f;
+        public const float MAX_FOV = 64f;
+        public const float DEFAULT_FOV = 55f;
+
+        public bool overrideFOV = false;
+        public float customFOV = DEFAULT_FOV;
+        public float fieldOfView => overrideFOV
+            ? Mathf.Clamp(customFOV, MIN_FOV, MAX_FOV)
+            : DEFAULT_FOV;
+
+        public GlassesMirrorMode glassesMirrorMode = GlassesMirrorMode.LeftEye;
 
 
         /// <summary>
@@ -96,12 +106,12 @@ namespace TiltFive
         public float gameBoardScale => gameBoard != null ? gameBoard.localScale : 1f;
 
         /// <summary>
-        /// The game board is the window into the game world, as well as the origin about which the glasses are tracked.
+        /// The game board is the window into the game world, as well as the origin about which the glasses/wand are tracked.
         /// </summary>
         /// <remarks>        
         /// It can be useful to modify the game board's location for cinematic purposes,
         /// such as following an object (such as a player's avatar) in the scene.
-        /// This avoids the need to directly modify the positions/orientations of the glasses,
+        /// This avoids the need to directly modify the positions/orientations of the glasses or wand,
         /// which track the player's movements relative to the game board.
         /// </remarks>
         public GameBoard gameBoard;
@@ -115,6 +125,14 @@ namespace TiltFive
         /// The game board rotation or focal rotational offset.
         /// </summary>
         public Vector3 gameBoardRotation => gameBoard != null ? gameBoard.rotation.eulerAngles : Vector3.zero;
+    }
+
+    public enum GlassesMirrorMode
+    {
+        None,
+        LeftEye,
+        RightEye,
+        Stereoscopic
     }
 
     /// <summary>
@@ -315,9 +333,9 @@ namespace TiltFive
                     return;
                 }
 
-                if(glassesSettings.headPoseCamera.fieldOfView != glassesSettings.defaultFOV)
+                if(glassesSettings.headPoseCamera.fieldOfView != glassesSettings.fieldOfView)
                 {
-                    glassesSettings.headPoseCamera.fieldOfView = glassesSettings.defaultFOV;
+                    glassesSettings.headPoseCamera.fieldOfView = glassesSettings.fieldOfView;
                 }
 
 #if UNITY_EDITOR
@@ -369,7 +387,7 @@ namespace TiltFive
             {
                 bool valid = true;
                 valid &= (glassesSettings.headPoseCamera == splitStereoCamera.headPoseCamera);
-                valid &= (glassesSettings.headPoseCamera.fieldOfView == glassesSettings.defaultFOV);
+                valid &= (glassesSettings.headPoseCamera.fieldOfView == glassesSettings.fieldOfView);
                 return valid;
             }
 
@@ -401,8 +419,9 @@ namespace TiltFive
                 }
 
                 // Check whether the glasses are plugged in and available.                
-                glassesAvailable = Plugin.GetGlassesAvailability();
-                splitStereoCamera.enabled = glassesAvailable;
+                glassesAvailable = Display.GetGlassesAvailability();
+                splitStereoCamera.enabled = glassesAvailable && glassesSettings.glassesMirrorMode != GlassesMirrorMode.None;
+                splitStereoCamera.glassesMirrorMode = glassesSettings.glassesMirrorMode;
 
                 // Latch the latest user-provided transforms game board transforms.
                 UpdateGameBoardPose(glassesSettings);
@@ -413,7 +432,7 @@ namespace TiltFive
 
                 if(glassesAvailable)
                 {
-                    Plugin.GetHeadPose(ref glassesPosition_GameBoardSpace, ref glassesRotation_GameBoardSpace);
+                    Display.GetHeadPose(ref glassesPosition_GameBoardSpace, ref glassesRotation_GameBoardSpace);
                 }
 
                 // Get the glasses pose in Unity world-space.

@@ -33,7 +33,7 @@ namespace TiltFive
         /// <summary>
         /// The glasses runtime configuration data.
         /// </summary>
-		public GlassesSettings glassesSettings = new GlassesSettings();        
+		public GlassesSettings glassesSettings = new GlassesSettings();
 
         /// <summary>
         /// The log settings.
@@ -54,7 +54,7 @@ namespace TiltFive
         {
             // Apply log settings
             Log.LogLevel = logSettings.level;
-            Log.TAG = logSettings.TAG;            
+            Log.TAG = logSettings.TAG;
 
             // adjust theCamera's far clip plane wrt the contentScale (e.g. theCamera translation).
             glassesSettings.headPoseCamera.farClipPlane = glassesSettings.headPoseCamera.farClipPlane / (glassesSettings.physicalMetersPerWorldSpaceUnit * glassesSettings.gameBoardScale);
@@ -81,8 +81,9 @@ namespace TiltFive
 			}
 
             Glasses.Update(glassesSettings);
+            Input.Update();
         }
-        
+
         /// <summary>
         /// Called when the GameObject is enabled.
         /// </summary>
@@ -114,10 +115,7 @@ namespace TiltFive
 		void OnValidate()
         {
             Log.LogLevel = logSettings.level;
-            //Log.v(Log.LogLevel + " log level.");
             Log.TAG = logSettings.TAG;
-
-            //Log.v(GetType() + " change to configuration detected.");
         }
 
         /// <summary>

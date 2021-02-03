@@ -39,6 +39,13 @@ namespace TiltFive
 		};
 
 		[System.Serializable]
+		public class Wand {
+			public bool enabled = true;
+			[Range(1,10)]
+			public int refreshRate = 3;
+		};
+
+		[System.Serializable]
 		public class ScreenStreaming {
 			public bool enabled = true;
 			[Range(1,10)]
@@ -50,6 +57,7 @@ namespace TiltFive
 		public bool enabled = false;
 		public RemotePlayerSettings.Host host = new RemotePlayerSettings.Host ();
 		public RemotePlayerSettings.Glasses glasses = new RemotePlayerSettings.Glasses ();
+		public RemotePlayerSettings.Wand wand = new RemotePlayerSettings.Wand ();
 		public RemotePlayerSettings.ScreenStreaming screenStreaming = new RemotePlayerSettings.ScreenStreaming();
 	}
 
